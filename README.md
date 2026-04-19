@@ -127,7 +127,7 @@ build/app/outputs/flutter-apk/app-release.apk
 
 ## Current Status
 
-Under Development
+Under Development.
 Some modules are in progress.
 
 ---
