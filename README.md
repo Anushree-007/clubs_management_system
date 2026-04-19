@@ -134,10 +134,12 @@ Some modules are in progress.
 
 ## Contributors
 
-Ishan Kadhe - SY-CS-F 03 12413593  
-Arnav Kale - SY-CS-F 09 12410282  
-Anushree Kendale - SY-CS-F 50 12411741  
-Shreya Khatavkar - SY-CS-F 64 12413599  
+| Name               | Class      | PRN      |
+|--------------------|------------|----------|
+| Ishan Kadhe        | SY-CS-F 03 | 12413593 |
+| Arnav Kale         | SY-CS-F 09 | 12410282 |
+| Anushree Kendale   | SY-CS-F 50 | 12411741 |
+| Shreya Khatavkar   | SY-CS-F 64 | 12413599 |
 
 ---
 
