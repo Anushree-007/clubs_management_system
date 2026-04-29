@@ -271,9 +271,36 @@ class EventDetailScreen extends GetView<EventController> {
                         icon: const Icon(Icons.account_balance_wallet),
                         label: const Text('View Finance Details'),
                         onPressed: () {
-                          // Navigate to finance detail screen
-                          Get.toNamed('/finance-detail');
-                        },
+                          // // Navigate to finance detail screen
+                          // final eventController = Get.find<EventController>();
+
+                          // // SET the selected event before navigating
+                          // eventController.selectedEvent.value = event;
+
+                          // Get.toNamed('/finance-detail');
+
+
+
+
+
+
+
+
+
+
+
+                            print("BUTTON CLICKED");
+
+                            final eventController = Get.find<EventController>();
+
+                            print("Selected event BEFORE set: ${eventController.selectedEvent.value}");
+
+                            eventController.selectedEvent.value = event;
+
+                            print("Selected event AFTER set: ${eventController.selectedEvent.value}");
+
+                            Get.toNamed('/finance-detail');
+                                                },
                       ),
                     ),
                   ],

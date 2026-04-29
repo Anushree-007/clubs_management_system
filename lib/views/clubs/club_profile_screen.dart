@@ -45,14 +45,14 @@ class ClubProfileScreen extends GetView<ClubController> {
       // Floating action button is shown only for chairperson users
       floatingActionButton: Obx(
         () {
-          // Show the button only if the current user is a chairperson
-          return authController.isChairperson
+          // Show the edit FAB only when the current user actually has
+          // write permission for THIS specific club.
+          // Teachers → yes for all clubs.
+          // Chairpersons → only for their own club (canManageClub checks both).
+          final clubId = controller.selectedClub.value?.id ?? '';
+          return authController.canManageClub(clubId)
               ? FloatingActionButton(
-                  // When pressed, navigate to the club edit route
-                  onPressed: () {
-                    Get.toNamed('/club-edit');
-                  },
-                  // Use an edit icon for the button
+                  onPressed: () => Get.toNamed('/club-edit'),
                   child: const Icon(Icons.edit),
                 )
               : const SizedBox.shrink();
@@ -195,6 +195,7 @@ class ClubProfileScreen extends GetView<ClubController> {
                                 .toList(),
                           ),
                       ],
+                      
                     ),
                   ),
                 ),
@@ -222,6 +223,21 @@ class ClubProfileScreen extends GetView<ClubController> {
                       ),
                     ),
                     const SizedBox(width: 12),
+
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Report button on club profile screen
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: const Text('Generate Report'),
+                      onPressed: () => Get.toNamed('/reports'),
+                    ),
+
+                    const SizedBox(width: 12),
+
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
@@ -230,8 +246,8 @@ class ClubProfileScreen extends GetView<ClubController> {
                         child: const Text('Documents'),
                       ),
                     ),
-                  ],
-                ),
+                  ]
+                )
               ],
             ),
           );

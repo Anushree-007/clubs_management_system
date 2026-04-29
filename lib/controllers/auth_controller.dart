@@ -13,6 +13,9 @@ import 'package:club_management_app/services/auth_service.dart';
 // Import the FirestoreService - this handles reading user data from Firestore database
 import 'package:club_management_app/services/firestore_service.dart';
 
+// Import the ClubController - this manages club data
+import 'package:club_management_app/controllers/club_controller.dart';
+
 // This is the AuthController class - it manages authentication state for the app
 // 'extends GetxController' means it inherits from GetxController, which provides GetX features
 // Controllers manage the business logic and state - they don't display anything, they just handle data
@@ -41,6 +44,54 @@ class AuthController extends GetxController {
   // We use this to show a loading spinner or disable the login button while signing in
   late RxBool isLoading = RxBool(false);
   // We initialize it to false because we're not loading anything at first
+
+  // ============================================================================
+  // onInit — runs automatically when this controller is first created by GetX
+  //
+  // This is where we restore the user's session if Firebase still has a valid
+  // auth token from a previous login.  Without this, the app always lands on
+  // the login screen even if the user logged in yesterday — because we never
+  // check whether Firebase already knows who they are.
+  //
+  // Flow:
+  //   1. Ask Firebase "is anyone currently signed in?"
+  //   2. If yes  → fetch their Firestore profile → go straight to dashboard
+  //   3. If no   → do nothing, the initial route '/login' is shown as normal
+  // ============================================================================
+  @override
+  void onInit() {
+    super.onInit();
+    _restoreSession(); // Commented out to require manual login every time
+  }
+
+  // Private helper — keeps onInit() clean and readable
+  Future<void> _restoreSession() async {
+    try {
+      // FirebaseAuth keeps the auth token on device between app launches.
+      // currentUser is non-null whenever a valid session exists.
+      final firebaseUser = _authService.getCurrentUser();
+
+      // No saved session → nothing to restore, stay on login screen
+      if (firebaseUser == null) return;
+
+      // A session exists — fetch the matching Firestore profile so the rest
+      // of the app has the full UserModel (name, role, clubId, etc.)
+      final user = await _firestoreService.getUser(firebaseUser.uid);
+
+      // Populate the reactive variable so every screen that reads currentUser
+      // immediately gets the correct data
+      currentUser.value = user;
+
+      // Replace the login route with the dashboard so the back button cannot
+      // bring the user back to the login screen
+      Get.offAllNamed('/dashboard');
+    } catch (e) {
+      // If the Firestore fetch fails (e.g. the users document was deleted),
+      // sign the user out so they start fresh rather than being stuck in a
+      // broken half-authenticated state
+      await _authService.signOut();
+    }
+  }
 
   // This method logs in a user with their email and password
   // It takes two parameters: email (String) and password (String)
@@ -72,6 +123,9 @@ class AuthController extends GetxController {
       // Save the fetched user data to the currentUser reactive variable
       // This automatically notifies the UI to rebuild with the new user data
       currentUser.value = user;
+
+      // Fetch clubs after login to populate the dropdown
+      Get.find<ClubController>().fetchAllClubs();
 
       // Navigate to the dashboard screen
       // '/dashboard' is the route name we defined somewhere else in the app
@@ -167,4 +221,31 @@ class AuthController extends GetxController {
     // The '==' operator checks if the role equals 'teacher'
     return currentUser.value?.role == 'teacher';
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // canManageClub — THE single source of truth for write-access to a club.
+  //
+  // Rules:
+  //   • Teachers (faculty/admin) can manage ANY club.
+  //   • Chairpersons can ONLY manage the club whose ID matches their own
+  //     clubId field in Firestore.
+  //
+  // Use this everywhere an edit, delete, or sensitive navigation happens:
+  //   - Before navigating to /club-edit
+  //   - Before showing the edit FAB on ClubProfileScreen
+  //   - Inside ClubController.updateClub() as a last-resort guard
+  //   - On the dashboard to decide which clubs the chairperson can tap into
+  // ─────────────────────────────────────────────────────────────────────────
+  bool canManageClub(String clubId) {
+    // Teachers can manage every club
+    if (isTeacher) return true;
+
+    // Chairpersons can only manage the club they were assigned to in Firestore
+    final myClubId = this.myClubId;
+    return isChairperson && myClubId != null && myClubId == clubId;
+  }
+
+  // Convenience getter — the clubId this chairperson owns.
+  // Returns null for teachers (they are not scoped to a single club).
+  String? get myClubId => currentUser.value?.clubId;
 }

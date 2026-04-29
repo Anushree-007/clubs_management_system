@@ -16,6 +16,20 @@ import 'package:club_management_app/models/tenure_model.dart';
 // Import the EventModel class - we need this for the event methods below
 import 'package:club_management_app/models/event_model.dart';
 
+
+// Import the new models we just created
+import 'package:club_management_app/models/finance_model.dart';
+import 'package:club_management_app/models/sponsor_model.dart';
+import 'package:club_management_app/models/ticket_model.dart';
+
+// Import the new resource and booking models
+import 'package:club_management_app/models/resource_model.dart';
+import 'package:club_management_app/models/booking_model.dart';
+
+// Import DocumentModel for document related methods
+import 'package:club_management_app/models/document_model.dart';
+
+
 // This is the FirestoreService class - it handles all database operations with Firestore
 // We put all database-related code here to keep it organized and reusable across the app
 class FirestoreService {
@@ -59,10 +73,14 @@ class FirestoreService {
         // Add the document ID to the data map since Firestore doesn't include it automatically
         data['id'] = documentSnapshot.id;
 
+        print('Fetched user document for $userId: $data');
+
         // Now we convert the Map data into a UserModel object
         // 'UserModel.fromJson(data)' uses the fromJson factory constructor
         // It takes the Map and creates a proper UserModel object from it
         UserModel user = UserModel.fromJson(data);
+
+        print('Parsed currentUser: id=${user.id} email=${user.email} role=${user.role} clubId=${user.clubId}');
 
         // Return the newly created UserModel object to whoever called this method
         return user;
@@ -94,7 +112,12 @@ class FirestoreService {
       // '_firestore.collection('clubs')' - we access the 'clubs' collection in Firestore
       // '.get()' - we fetch ALL documents from this collection at once
       // 'await' waits for Firestore to respond with all the documents before continuing
+      print('Firestore project: ${_firestore.app.options.projectId}');
+      print('Firestore appId: ${_firestore.app.options.appId}');
+      print('Firestore collection path: clubs');
       QuerySnapshot querySnapshot = await _firestore.collection('clubs').get();
+
+      print('QuerySnapshot docs length: ${querySnapshot.docs.length}');
 
       // '.docs' is a list that contains all the documents we fetched
       // '.map((doc) => ...)' goes through each document one by one and transforms it
@@ -102,19 +125,28 @@ class FirestoreService {
       List<ClubModel> clubs = querySnapshot.docs
           // '.map' takes each document and converts it
           .map((doc) {
-            // '...doc.data() as Map' gets the data from this document as a Map
-            // 'Map<String, dynamic>' means a map with String keys and any type of value
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            
-            // Add the document ID to the data map since Firestore doesn't include it automatically
-            data['id'] = doc.id;
-            
-            // 'ClubModel.fromJson(data)' uses the fromJson factory constructor
-            // It converts the Map data into a proper ClubModel object
-            return ClubModel.fromJson(data);
+            try {
+              // '...doc.data() as Map' gets the data from this document as a Map
+              // 'Map<String, dynamic>' means a map with String keys and any type of value
+              Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+              
+              // Add the document ID to the data map since Firestore doesn't include it automatically
+              data['id'] = doc.id;
+              
+              print('Processing club: ${doc.id}, data: $data');
+              
+              // 'ClubModel.fromJson(data)' uses the fromJson factory constructor
+              // It converts the Map data into a proper ClubModel object
+              return ClubModel.fromJson(data);
+            } catch (e) {
+              print('Error processing club ${doc.id}: $e');
+              rethrow;
+            }
           })
           // '.toList()' converts the mapped results into a List
           .toList();
+
+      print('Converted to ${clubs.length} ClubModel objects');
 
       // Return the list of all ClubModel objects to whoever called this method
       return clubs;
@@ -422,6 +454,347 @@ Future<void> updateEvent(String eventId, Map<String, dynamic> data) async {
 // Be careful — this cannot be undone!
 Future<void> deleteEvent(String eventId) async {
   await _firestore.collection('events').doc(eventId).delete();
+}
+
+// -------------------------------------------------------
+// FINANCE METHODS
+// -------------------------------------------------------
+
+// Get the finance record for a specific event
+// Each event has only ONE finance document
+Future<FinanceModel?> getFinance(String eventId) async {
+  // Query the finances subcollection inside the event document
+  final snapshot = await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('finances')
+      .limit(1) // Only one finance record per event
+      .get();
+
+  // If no finance record exists yet return null
+  if (snapshot.docs.isEmpty) return null;
+
+  // Convert the first document to a FinanceModel and return it
+  final doc = snapshot.docs.first;
+  return FinanceModel.fromJson(doc.id, doc.data());
+}
+
+// Add a new finance record for an event
+Future<void> addFinance(String eventId, FinanceModel finance) async {
+  // Save inside events/{eventId}/finances subcollection
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('finances')
+      .add(finance.toJson());
+}
+
+// Update an existing finance record
+Future<void> updateFinance(
+    String eventId, String financeId, Map<String, dynamic> data) async {
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('finances')
+      .doc(financeId)
+      .update(data);
+}
+
+// -------------------------------------------------------
+// SPONSOR METHODS
+// -------------------------------------------------------
+
+// Get all sponsors for a specific event
+Future<List<SponsorModel>> getSponsors(String eventId) async {
+  final snapshot = await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('sponsors')
+      .get();
+
+  // Convert each document to a SponsorModel
+  return snapshot.docs
+      .map((doc) => SponsorModel.fromJson(doc.id, doc.data()))
+      .toList();
+}
+
+// Add a new sponsor for an event
+Future<void> addSponsor(String eventId, SponsorModel sponsor) async {
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('sponsors')
+      .add(sponsor.toJson());
+}
+
+// Delete a sponsor
+Future<void> deleteSponsor(String eventId, String sponsorId) async {
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('sponsors')
+      .doc(sponsorId)
+      .delete();
+}
+
+// -------------------------------------------------------
+// TICKET METHODS
+// -------------------------------------------------------
+
+// Get the ticket record for a specific event
+// Each event has only ONE ticket document
+Future<TicketModel?> getTicket(String eventId) async {
+  final snapshot = await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('tickets')
+      .limit(1)
+      .get();
+
+  // If no ticket record exists return null
+  if (snapshot.docs.isEmpty) return null;
+
+  final doc = snapshot.docs.first;
+  return TicketModel.fromJson(doc.id, doc.data());
+}
+
+// Add a ticket record for an event
+Future<void> addTicket(String eventId, TicketModel ticket) async {
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('tickets')
+      .add(ticket.toJson());
+}
+
+// Update an existing ticket record
+Future<void> updateTicket(
+    String eventId, String ticketId, Map<String, dynamic> data) async {
+  await _firestore
+      .collection('events')
+      .doc(eventId)
+      .collection('tickets')
+      .doc(ticketId)
+      .update(data);
+}
+
+// Mark an event budget as closed
+// This updates the budgetClosed field on the event document itself
+Future<void> closeBudget(String eventId) async {
+  await _firestore.collection('events').doc(eventId).update({
+    'budgetClosed': true,
+    // Save the exact time the budget was closed
+    'budgetClosedAt': DateTime.now(),
+  });
+}
+
+// -------------------------------------------------------
+// RESOURCE METHODS
+// -------------------------------------------------------
+
+// Get all resources from the 'resources' collection
+Future<List<ResourceModel>> getAllResources() async {
+  final snapshot = await _firestore.collection('resources').get();
+
+  // Convert each document to a ResourceModel
+  return snapshot.docs
+      .map((doc) => ResourceModel.fromJson(doc.id, doc.data()))
+      .toList();
+}
+
+// Update a resource document — used to change status
+Future<void> updateResource(
+    String resourceId, Map<String, dynamic> data) async {
+  await _firestore.collection('resources').doc(resourceId).update(data);
+}
+
+// -------------------------------------------------------
+// BOOKING METHODS
+// -------------------------------------------------------
+
+// Get all bookings — teachers see all, used for approval screen
+Future<List<BookingModel>> getAllBookings() async {
+  final snapshot = await _firestore
+      .collection('bookings')
+      .orderBy('createdAt', descending: true)
+      .get();
+
+  return snapshot.docs
+      .map((doc) => BookingModel.fromJson(doc.id, doc.data()))
+      .toList();
+}
+
+// Get bookings for a specific club — chairperson sees their own
+Future<List<BookingModel>> getBookingsByClub(String clubId) async {
+  final snapshot = await _firestore
+      .collection('bookings')
+      .where('clubId', isEqualTo: clubId)
+      .orderBy('createdAt', descending: true)
+      .get();
+
+  return snapshot.docs
+      .map((doc) => BookingModel.fromJson(doc.id, doc.data()))
+      .toList();
+}
+
+// Add a new booking request
+Future<void> addBooking(BookingModel booking) async {
+  await _firestore.collection('bookings').add(booking.toJson());
+}
+
+// Update booking status — approve or reject
+Future<void> updateBookingStatus(
+    String bookingId, String status, String approvedBy) async {
+  await _firestore.collection('bookings').doc(bookingId).update({
+    'status': status,       // "approved" or "rejected"
+    'approvedBy': approvedBy, // who approved or rejected it
+  });
+}
+
+// -------------------------------------------------------
+// DOCUMENT METHODS
+// -------------------------------------------------------
+
+// Get all documents for a specific club.
+// If eventId is provided, only documents for that event are returned.
+//
+// WHY the where() calls must come before orderBy():
+//
+// Firestore requires that every field used in a where() compound query
+// appears in the index before the field used in orderBy().  Appending a
+// where() AFTER orderBy() on a different field breaks that rule and throws
+// a runtime "failed-precondition / requires index" error.  Building the
+// complete filter chain first and then adding orderBy() last keeps the
+// query valid and matches Firestore's expected index structure.
+//
+// Composite index required in Firestore console when eventId is used:
+//   Collection : documents
+//   Fields     : clubId (ASC), eventId (ASC), uploadedAt (DESC)
+Future<List<DocumentModel>> getDocuments(
+    String clubId, {String? eventId}) async {
+
+  // Start from the bare collection reference
+  Query query = _firestore.collection('documents');
+
+  // Apply all where() filters BEFORE orderBy()
+  query = query.where('clubId', isEqualTo: clubId);
+
+  // Optional second filter — added before orderBy so the chain is valid
+  if (eventId != null && eventId.isNotEmpty) {
+    query = query.where('eventId', isEqualTo: eventId);
+  }
+
+  // orderBy() is always the last call in the chain
+  query = query.orderBy('uploadedAt', descending: true);
+
+  final snapshot = await query.get();
+
+  return snapshot.docs
+      .map((doc) => DocumentModel.fromJson(
+            doc.id,
+            doc.data() as Map<String, dynamic>,
+          ))
+      .toList();
+}
+
+// Add a new document record to Firestore
+// This saves the metadata — the actual file is in Firebase Storage
+Future<void> addDocument(DocumentModel document) async {
+  await _firestore.collection('documents').add(document.toJson());
+}
+
+// Delete a document record from Firestore
+Future<void> deleteDocument(String documentId) async {
+  await _firestore.collection('documents').doc(documentId).delete();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USER REQUEST METHODS
+//
+// These methods manage the user_requests collection that holds pending
+// registration requests submitted by new teachers and chairpersons.
+// The admin reads from this collection to approve or reject requests.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Submit a new registration request.
+// Called from RegisterRequestScreen when the form is submitted.
+// We intentionally do NOT import UserRequestModel here to avoid a circular
+// dependency — we accept a plain Map so the service stays data-model-agnostic.
+Future<String> submitUserRequest(Map<String, dynamic> data) async {
+  final docRef = await _firestore.collection('user_requests').add(data);
+  return docRef.id;
+}
+
+// Fetch all user requests — used by the admin's request management screen.
+// Returns raw maps; the controller converts them to UserRequestModel objects.
+Future<List<Map<String, dynamic>>> getAllUserRequests() async {
+  final snapshot = await _firestore
+      .collection('user_requests')
+      .orderBy('createdAt', descending: true)
+      .get();
+
+  return snapshot.docs.map((doc) {
+    final data = doc.data();
+    data['id'] = doc.id;
+    return data;
+  }).toList();
+}
+
+// Fetch only pending requests — the number is shown as a badge on the
+// admin dashboard so they know how many need attention.
+Future<int> getPendingRequestCount() async {
+  final snapshot = await _firestore
+      .collection('user_requests')
+      .where('status', isEqualTo: 'pending')
+      .get();
+  return snapshot.docs.length;
+}
+
+// Update a request document — used to set status, rejectionReason, reviewedAt.
+Future<void> updateUserRequest(
+    String requestId, Map<String, dynamic> data) async {
+  await _firestore.collection('user_requests').doc(requestId).update(data);
+}
+
+// Create an approved user profile in the 'users' collection.
+// This is called AFTER the Firebase Auth account is created on approval,
+// so the app has a full UserModel to read back on login.
+Future<void> createUserProfile(String uid, Map<String, dynamic> data) async {
+  // We store the uid as the document ID so getUser(uid) works immediately.
+  await _firestore.collection('users').doc(uid).set(data);
+}
+
+
+
+// Add to your FirestoreService class:
+
+Future<String> createClubFromData(Map<String, dynamic> clubData) async {
+  final docRef = _firestore.collection('clubs').doc();
+  await docRef.set(clubData);
+  return docRef.id;
+}
+
+
+Future<Map<String, dynamic>?> getRequestByEmail(String email) async {
+  try {
+    final snapshot = await _firestore
+        .collection('user_requests')
+        .where('email', isEqualTo: email.toLowerCase().trim())
+        .limit(1)
+        .get();
+    
+    if (snapshot.docs.isNotEmpty) {
+      final doc = snapshot.docs.first;
+      return {
+        'id': doc.id,
+        ...doc.data(),
+      };
+    }
+    return null; // No request found
+  } catch (e) {
+    print('Error fetching request by email: $e');
+    return null;
+  }
 }
 
 

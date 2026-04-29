@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 // This is the UserModel class - it represents a user in our Firebase app
 class UserModel {
   // The 'final' keyword means these values cannot be changed after the object is created
@@ -71,13 +73,19 @@ class UserModel {
       // If 'clubId' doesn't exist in json, this will be null (no error)
       clubId: json['clubId'] as String?,
       
-      // Get the 'createdAt' value from json - it's stored as a timestamp in Firestore
-      // Firestore stores timestamps as special objects, so we need to convert them
-      // We use '?.toDate()' to safely convert the timestamp to a DateTime object
-      // The '?.' means: only call toDate() if the value is not null
-      // If null, we use DateTime.now() as the default creation time
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      // Get the 'createdAt' value from json and convert it safely to DateTime.
+      // Firestore may return a Timestamp, a DateTime, or a String depending
+      // on how the value was written, so we parse safely.
+      createdAt: _parseDateTime(json['createdAt']),
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    return DateTime.now();
   }
 
   // This is the 'toJson' method - it converts a UserModel object back into a Map

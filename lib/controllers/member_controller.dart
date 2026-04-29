@@ -1,4 +1,5 @@
 // Import GetX so we can use GetxController, reactive variables, and navigation helpers
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 // Import the MemberModel class so we can store member data in this controller
@@ -6,6 +7,7 @@ import 'package:club_management_app/models/member_model.dart';
 
 // Import the FirestoreService class so we can load and save members from Firestore
 import 'package:club_management_app/services/firestore_service.dart';
+import 'package:club_management_app/controllers/club_controller.dart';
 
 // This controller manages the member list and member form state for the app
 class MemberController extends GetxController {
@@ -52,18 +54,18 @@ class MemberController extends GetxController {
       // Refresh the list after adding a new member
       await fetchMembers(clubId, member.tenureId);
 
-      // Show success feedback
-      Get.defaultDialog(
-        title: 'Success',
-        middleText: 'Member added successfully',
-        barrierDismissible: false,
+      // Show a snackbar — consistent with every other controller in this app.
+      // The old approach used Get.defaultDialog + Future.delayed(2s) + Get.back().
+      // That pattern is fragile: if the user navigates away during the 2-second
+      // wait, the second Get.back() pops the wrong screen.  A snackbar delivers
+      // the same feedback with zero timing risk.
+      Get.snackbar(
+        'Success',
+        'Member added successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
       );
-
-      // Wait a bit for the user to see the message
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Close the dialog
-      Get.back();
 
       // Navigate back to the member list
       Get.back();
@@ -90,18 +92,14 @@ class MemberController extends GetxController {
         await fetchMembers(clubId, tenureId);
       }
 
-      // Show success feedback
-      Get.defaultDialog(
-        title: 'Success',
-        middleText: 'Member updated successfully',
-        barrierDismissible: false,
+      // Show success feedback — same reasoning as addMember above
+      Get.snackbar(
+        'Success',
+        'Member updated successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
       );
-
-      // Wait a bit for the user to see the message
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Close the dialog
-      Get.back();
 
       // Navigate back to the member list
       Get.back();
@@ -113,26 +111,40 @@ class MemberController extends GetxController {
 
   // Delete a member and refresh the members list
   Future<void> deleteMember(String clubId, String memberId) async {
-    try {
-      // Delete the member document from Firestore
-      await _firestoreService.deleteMember(clubId, memberId);
+      try {
+        isLoading.value = true;
 
-      // Refresh the list after deleting the member
-      // Use the currently selected member tenure if available
-      // Otherwise use the tenure from the already loaded list
-      String tenureId = selectedMember.value?.tenureId ??
-          (members.isNotEmpty ? members.first.tenureId : '');
-      if (tenureId.isNotEmpty) {
+        // Delete the member from Firestore
+        await _firestoreService.deleteMember(clubId, memberId);
+
+        // Get the current tenure ID to refresh the list correctly
+        final tenureId = Get.find<ClubController>()
+            .currentTenure
+            .value
+            ?.id ?? '';
+
+        // Refresh the members list so deleted member disappears immediately
         await fetchMembers(clubId, tenureId);
-      }
 
-      // Show success feedback
-      Get.snackbar('Success', 'Member removed');
-    } catch (error) {
-      // Show error feedback if the delete operation fails
-      Get.snackbar('Error', 'Failed to remove member: $error');
+        // Show confirmation message to the user
+        Get.snackbar(
+          'Success',
+          'Member deleted successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Could not delete member: $e',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } finally {
+        isLoading.value = false;
+      }
     }
-  }
 
   // Select a member for editing and navigate to the member form screen
   void selectMember(MemberModel member) {

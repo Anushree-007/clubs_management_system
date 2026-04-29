@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 // This is the ClubModel class - it represents a club in our college club management app
 class ClubModel {
   // The 'final' keyword means these values cannot be changed after the object is created
@@ -105,14 +107,27 @@ class ClubModel {
       
       // Get 'facultyPhone' from json with null safety - defaults to empty string if missing
       facultyPhone: (json['facultyPhone'] as String?) ?? '',
-      
-      // Get 'createdAt' value from json - it's stored as a timestamp in Firestore
-      // Firestore stores timestamps as special objects, so we need to convert them
-      // We use '?.toDate()' to safely convert the timestamp to a DateTime object
-      // The '?.' means: only call toDate() if the value is not null
-      // If null, we use DateTime.now() as the default creation time
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
+
+      // Get 'createdAt' value from json and convert it safely to DateTime.
+      // Firestore may return a Timestamp, a DateTime, or a String depending on how the data was written.
+      createdAt: _parseDateTime(json['createdAt']),
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) {
+      return DateTime.now();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 
   // This is the 'toJson' method - it converts a ClubModel object back into a Map

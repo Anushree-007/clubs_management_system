@@ -33,7 +33,7 @@ dependencies:
 
 
 
-
+  url_launcher: ^6.3.0
 
 
   # Firebase - the database and login system

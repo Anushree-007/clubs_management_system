@@ -9,6 +9,7 @@ import 'package:club_management_app/models/tenure_model.dart';
 
 // Import the FirestoreService class so this controller can call Firestore methods
 import 'package:club_management_app/services/firestore_service.dart';
+import 'package:club_management_app/controllers/auth_controller.dart';
 
 // This is the ClubController class - it manages club-related state and actions
 class ClubController extends GetxController {
@@ -51,13 +52,43 @@ class ClubController extends GetxController {
     // Set isLoading to true so the UI can show a loading indicator
     isLoading.value = true;
 
+    print('Fetching clubs...');
+
     // 'try' block - we attempt to fetch clubs from Firestore
     try {
       // Call the FirestoreService method to get all clubs
       List<ClubModel> allClubs = await _firestoreService.getAllClubs();
 
+      print('Fetched ${allClubs.length} clubs');
+
       // Replace the current list contents with the fetched club list
       clubs.assignAll(allClubs);
+
+      // Keep the currently selected club in sync if it still exists.
+      if (selectedClubId.isNotEmpty) {
+        selectedClub.value =
+            clubs.firstWhereOrNull((item) => item.id == selectedClubId.value);
+      }
+
+      // Auto-select the chairperson's club when they only have one assigned club.
+      final authController = Get.find<AuthController>();
+      final myClubId = authController.myClubId;
+      print('myClubId: $myClubId');
+      if (selectedClubId.isEmpty && myClubId != null && myClubId.isNotEmpty) {
+        final club = clubs.firstWhereOrNull((item) => item.id == myClubId);
+        print('Found club for chairperson: ${club?.name}');
+        if (club != null) {
+          selectedClubId.value = club.id;
+          selectedClub.value = club;
+        }
+      }
+
+      // If the user is not scoped to a single club and there is only one club total,
+      // preselect it so the dropdown shows a value automatically.
+      if (selectedClubId.isEmpty && clubs.length == 1) {
+        selectedClubId.value = clubs.first.id;
+        selectedClub.value = clubs.first;
+      }
     }
     // 'catch' block - if anything goes wrong during the fetch
     catch (error) {
@@ -93,6 +124,14 @@ class ClubController extends GetxController {
 
     // Load the current tenure for the selected club from Firestore
     try {
+      // Guard: if currentTenureId is empty the club has no active tenure yet.
+      // Sending an empty string to Firestore would produce a "document not
+      // found" error.  Show a clear message instead and stay on the dashboard.
+      if (club.currentTenureId.isEmpty) {
+        Get.snackbar('No Tenure', 'This club has no active tenure set up yet.');
+        return;
+      }
+
       TenureModel tenure = await _firestoreService.getCurrentTenure(
         clubId,
         club.currentTenureId,
@@ -112,28 +151,30 @@ class ClubController extends GetxController {
 
   // This method updates a club in Firestore and refreshes the list afterward
   Future<void> updateClub(String clubId, Map<String, dynamic> data) async {
-    // Set isLoading to true so the UI can show a loading indicator
+    // ── Ownership guard ──────────────────────────────────────────────────
+    // Double-check permission here even though the UI should already prevent
+    // unauthorised edits. This stops anyone who bypasses the UI (e.g. via
+    // deep-linking directly to /club-edit) from writing to Firestore.
+    final authController = Get.find<AuthController>();
+    if (!authController.canManageClub(clubId)) {
+      Get.snackbar(
+        'Access Denied',
+        'You can only edit your own club.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     isLoading.value = true;
 
-    // 'try' block - we attempt to update the club document in Firestore
     try {
-      // Call the FirestoreService method to update the club data
       await _firestoreService.updateClub(clubId, data);
-
-      // Refresh the club data by fetching all clubs again
       await fetchAllClubs();
-
-      // Show a success snackbar when the update completes
       Get.snackbar('Success', 'Club updated successfully');
-    }
-    // 'catch' block - if the update fails
-    catch (error) {
-      // Show an error snackbar with the failure message
+    } catch (error) {
       Get.snackbar('Error', 'Failed to update club: $error');
-    }
-    // 'finally' block runs whether or not the update succeeded
-    finally {
-      // Set isLoading back to false once the update is complete
+    } finally {
       isLoading.value = false;
     }
   }
