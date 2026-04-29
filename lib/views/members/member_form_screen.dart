@@ -9,7 +9,7 @@ import 'package:club_management_app/models/member_model.dart'; // import MemberM
 // This screen shows a form for adding or editing a club member
 class MemberFormScreen extends GetView<MemberController> {
 
-  // Form key to validate the form fields
+  // Form key to validate  form fields
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // Text controller for the full name field

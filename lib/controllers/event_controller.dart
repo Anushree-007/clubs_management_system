@@ -3,6 +3,7 @@
 // The screens call methods here, and this controller talks to Firestore
 
 // GetX package for state management and navigation
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 // Our EventModel so we can work with event objects
@@ -78,14 +79,19 @@ class EventController extends GetxController {
       await fetchEvents(event.clubId, event.tenureId);
 
       // Show a green success message
-      Get.snackbar(
-        'Success',
-        'Event added successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-
-      // Go back to the previous screen automatically
       Get.back();
+      await Future.delayed(const Duration(milliseconds: 300));
+      Get.snackbar(
+        'Event Saved',
+        'Event has been saved successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF0F6E56),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(12),
+        borderRadius: 10,
+        icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+      );
 
     } catch (e) {
       // Show error if saving failed
@@ -120,14 +126,19 @@ class EventController extends GetxController {
       await fetchEvents(clubId, tenureId);
 
       // Show success message
+      Get.back();
+      await Future.delayed(const Duration(milliseconds: 300));
       Get.snackbar(
         'Success',
         'Event updated successfully',
         snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF0F6E56),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(12),
+        borderRadius: 10,
+        icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
       );
-
-      // Go back to the previous screen
-      Get.back();
 
     } catch (e) {
       // Show error if update failed

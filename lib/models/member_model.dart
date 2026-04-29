@@ -68,7 +68,7 @@ class MemberModel {
       phone: json['phone'] as String, // read phone from Firestore map
       email: json['email'] as String, // read email from Firestore map
       isActive: json['isActive'] as bool, // read isActive from Firestore map
-      createdAt: (json['createdAt'] as dynamic)?.toDate() as DateTime, // convert Firestore Timestamp to DateTime
+      createdAt: _parseDate(json['createdAt']), // convert Firestore Timestamp to DateTime
     );
   }
 
@@ -90,4 +90,10 @@ class MemberModel {
       'createdAt': createdAt, // include createdAt in the JSON map
     };
   }
+  static DateTime _parseDate(dynamic value) {
+  if (value == null) return DateTime.now();
+  try { return value.toDate(); } catch (_) {}
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
 }

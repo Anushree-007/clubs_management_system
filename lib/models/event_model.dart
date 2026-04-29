@@ -25,6 +25,10 @@ class EventModel {
   final bool budgetClosed;       // Is the finance for this event finalized? false by default
   final DateTime? budgetClosedAt; // When was the budget closed — nullable (can be empty)
   final DateTime createdAt;      // When was this event record created in the app
+  final String reportStatus; 
+  // Values: 'draft', 'pending_review', 'needs_revision', 'approved'
+final String reportRevisionNote;
+// Admin's note when requesting revision — empty string by default
 
   // --- Constructor ---
   // This is called when we create a new EventModel object in our code
@@ -44,6 +48,8 @@ class EventModel {
     required this.budgetClosed,
     this.budgetClosedAt,          // Not required because it can be null
     required this.createdAt,
+    required this.reportStatus,
+    required this.reportRevisionNote,
   });
 
   // --- fromJson ---
@@ -63,8 +69,8 @@ class EventModel {
       // Firestore stores dates as Timestamps — we convert them to Dart DateTime
       // (json['date'] as Timestamp) casts the value to a Timestamp object
       // .toDate() then converts it to a normal Dart DateTime
-      date: (json['date'] as Timestamp).toDate(),
-      endDate: (json['endDate'] as Timestamp).toDate(),
+      date: _parseDate(json['date']),
+      endDate: _parseDate(json['endDate']),
 
       // Convert to double — Firestore may store this as int or double
       durationHours: (json['durationHours'] ?? 0).toDouble(),
@@ -82,10 +88,12 @@ class EventModel {
       // budgetClosedAt can be null — so we check before converting
       // If null, we just store null. If not null, we convert the Timestamp
       budgetClosedAt: json['budgetClosedAt'] != null
-          ? (json['budgetClosedAt'] as Timestamp).toDate()
+          ? _parseDate(json['budgetClosedAt'])
           : null,
 
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      createdAt: _parseDate(json['createdAt']),
+      reportStatus: json['reportStatus'] ?? 'draft',
+      reportRevisionNote: json['reportRevisionNote'] ?? '',
     );
   }
 
@@ -108,6 +116,15 @@ class EventModel {
       'budgetClosed': budgetClosed,
       'budgetClosedAt': budgetClosedAt, // This is fine as null — Firestore handles it
       'createdAt': createdAt,
+      'reportStatus': reportStatus,
+      'reportRevisionNote': reportRevisionNote,
     };
   }
+
+  static DateTime _parseDate(dynamic value) {
+  if (value == null) return DateTime.now();
+  try { return value.toDate(); } catch (_) {}
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
 }

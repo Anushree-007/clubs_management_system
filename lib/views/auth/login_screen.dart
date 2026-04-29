@@ -1,216 +1,155 @@
 // Import Flutter Material Design - this gives us widgets like TextField, Button, etc.
 import 'package:flutter/material.dart';
 
-// Import GetX - this lets us use GetView and reactive state management
+// Import GetX - this lets us use Get.find and reactive state management
 import 'package:get/get.dart';
 
 // Import the AuthController - this manages login logic and state
 import 'package:club_management_app/controllers/auth_controller.dart';
 
-// This is the LoginScreen widget - it's a GetX View for the login page
-// 'GetView<AuthController>' means this screen automatically gets access to AuthController
-// We don't need to manually create or pass the controller - GetX handles it
-class LoginScreen extends GetView<AuthController> {
-  // The constructor - this is called when the screen is created
-  LoginScreen({super.key});
+// ============================================================================
+// WHY StatefulWidget instead of GetView?
+//
+// GetView is a StatelessWidget under the hood.  StatelessWidgets have no
+// lifecycle — specifically, they have no dispose() method.
+//
+// TextEditingController is a resource that holds a native text-editing
+// buffer.  If it is never disposed, that buffer is never released — this is
+// a memory leak that accumulates every time the login screen is shown.
+//
+// By using StatefulWidget we gain a dispose() method in the State class,
+// which is called automatically by Flutter when the screen is removed from
+// the widget tree.  We dispose both controllers there to release their
+// native resources immediately.
+//
+// We still reach AuthController via Get.find<AuthController>() so we keep
+// all the GetX reactive goodness without the lifecycle problem.
+// ============================================================================
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
-  // TextEditingController for the email field - this stores whatever the user types
-  // We make it final because we don't change it after creating it
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  // Look up the already-registered AuthController from GetX
+  // This is equivalent to what GetView<AuthController>.controller gives us
+  final AuthController _authController = Get.find<AuthController>();
+
+  // TextEditingController manages the text buffer for the email field.
+  // Creating it here (in State) ensures it lives exactly as long as the
+  // screen does and is disposed when the screen is removed.
   final TextEditingController _emailController = TextEditingController();
 
-  // TextEditingController for the password field - this stores the password text
+  // Same as above for the password field
   final TextEditingController _passwordController = TextEditingController();
 
-  // This boolean tracks whether the password is visible or hidden
-  // We start with false (password is hidden) - but actually this needs to be reactive
-  // Let me reconsider - for this simple screen, we might need to use state
-  // Actually, GetView can work with a StatelessWidget that uses controllers
-  // But we need a way to toggle password visibility
-  // Let me use the controller's reactive variables or create a local one
+  // _formKey lets us call _formKey.currentState!.validate() to trigger all
+  // TextFormField validators at once before submitting to Firebase
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // -----------------------------------------------------------------------
+  // dispose() — called automatically by Flutter when this screen is removed
+  // from the widget tree (e.g. after successful login, or back navigation).
+  // Releasing these controllers here prevents the memory leak described above.
+  // -----------------------------------------------------------------------
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // -----------------------------------------------------------------------
+  // _submit() — validates inputs locally before hitting Firebase.
+  //
+  // Without validation the login button fires a network request even if
+  // both fields are empty, which wastes bandwidth and returns a confusing
+  // Firebase error message instead of a clear inline hint to the user.
+  // -----------------------------------------------------------------------
+  void _submit() {
+    // validate() calls every TextFormField validator in the Form.
+    // Returns true only when ALL validators return null (no errors).
+    if (_formKey.currentState!.validate()) {
+      _authController.login(
+        _emailController.text.trim(), // trim() removes accidental leading/trailing spaces
+        _passwordController.text,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 'Scaffold' is the basic structure of a Flutter screen
-    // It provides app bars, floating buttons, drawers, and body layout
+    // Use the theme's scaffold background so dark mode is respected.
+    // The old code had backgroundColor: Colors.white which forced a white
+    // background even when the user had dark mode switched on.
     return Scaffold(
-      // Set the background color to white
-      backgroundColor: Colors.white,
-
-      // 'body' is the main content area of the screen
       body: SingleChildScrollView(
-        // 'SingleChildScrollView' allows the content to scroll if it's too big
-        // This is important if the keyboard pops up and covers content
-
-        // 'SafeArea' adds padding to avoid system elements like status bar and notches
         child: SafeArea(
-          // 'Padding' adds space around all sides of the content
           child: Padding(
-            // 'EdgeInsets.all(20)' adds 20 pixels of padding on all sides
             padding: const EdgeInsets.all(20),
+            // Form widget wraps all TextFormFields so validate() works
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
 
-            // 'Column' arranges children vertically (top to bottom)
-            child: Column(
-              // 'mainAxisAlignment' controls vertical alignment
-              // 'spaceBetween' spreads content to top and bottom
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-              // 'crossAxisAlignment' controls horizontal alignment
-              // 'center' centers content horizontally
-              crossAxisAlignment: CrossAxisAlignment.center,
-
-              // These are the children (widgets) inside the column
-              children: [
-                // --- TOP SECTION: App Title and Subtitle ---
-
-                // 'Column' to hold title and subtitle together
-                Column(
-                  // Space children vertically with some gap between them
-                  mainAxisSize: MainAxisSize.min,
-
-                  // Center align all children
-                  children: [
-                    // App Name - "Club Manager"
-                    // 'Text' widget displays text on screen
-                    const Text(
-                      'Club Manager', // The text to display
-                      // 'style' controls how the text looks
-                      style: TextStyle(
-                        fontSize: 32, // Make the text big (32 pixels)
-                        fontWeight: FontWeight.bold, // Make it bold (thick)
-                        color: Colors.black87, // Dark color for contrast
+                  // --- TOP SECTION: App Title and Subtitle ---
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Club Manager',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          // Use the theme's onSurface color so the text is
+                          // readable in both light and dark mode
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                    ),
-
-                    // Add vertical space between title and subtitle
-                    // 'SizedBox' is an invisible box that takes up space
-                    const SizedBox(height: 8),
-
-                    // Subtitle - "VIT College — Staff Portal"
-                    const Text(
-                      'VIT College — Staff Portal', // The subtitle text
-                      style: TextStyle(
-                        fontSize: 14, // Smaller text for subtitle
-                        color: Colors.grey, // Grey color for subtle appearance
-                        fontStyle: FontStyle.italic, // Italicize to make it distinct
+                      const SizedBox(height: 8),
+                      const Text(
+                        'VIT College — Staff Portal',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
-                    ),
-
-                    // Add more space between header and login form
-                    const SizedBox(height: 40),
-                  ],
-                ),
-
-                // --- MIDDLE SECTION: Login Form in a Card ---
-
-                // 'Card' creates a nice elevated white box with shadow
-                Card(
-                  // 'elevation' controls the shadow depth (higher = more shadow)
-                  elevation: 2,
-
-                  // 'shape' controls the corners of the card
-                  shape: RoundedRectangleBorder(
-                    // 'borderRadius' makes the corners rounded
-                    borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 40),
+                    ],
                   ),
 
-                  // 'child' is the content inside the card
-                  child: Padding(
-                    // Add padding inside the card
-                    padding: const EdgeInsets.all(24),
+                  // --- MIDDLE SECTION: Login Form in a Card ---
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
 
-                    // 'Column' to arrange form fields vertically
-                    child: Column(
-                      // Space fields apart
-                      mainAxisSize: MainAxisSize.min,
-
-                      // Center fields horizontally
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-
-                      // Form fields go here
-                      children: [
-                        // --- EMAIL TEXT FIELD ---
-
-                        // 'TextField' allows users to type text input
-                        TextField(
-                          // Link this field to the email controller
-                          // The controller stores what the user types
-                          controller: _emailController,
-
-                          // Decorate the text field with borders, labels, etc.
-                          decoration: InputDecoration(
-                            // Label text appears above or inside the field
-                            labelText: 'Email', // Label for the field
-
-                            // Hint text appears as placeholder text
-                            hintText: 'Enter your email', // Placeholder
-
-                            // Border when field is not focused (not tapped)
-                            border: OutlineInputBorder(
-                              // Rounded corners for the border
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-
-                            // Border when field is focused (user is typing)
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              // Blue border when focused
-                              borderSide: const BorderSide(
-                                color: Colors.blue,
-                                width: 2,
-                              ),
-                            ),
-
-                            // Padding inside the text field
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-
-                          // Keyboard type - show email keyboard
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-
-                        // Space between email and password fields
-                        const SizedBox(height: 16),
-
-                        // --- PASSWORD TEXT FIELD ---
-
-                        // We need to track password visibility
-                        // Since this is a StatelessWidget, we'll use a simpler approach
-                        // Actually, GetView needs to be used with a controller or with State
-                        // Let me make this work by using the controller for state management
-                        // For now, I'll use a Obx to make it reactive with a controller variable
-
-                        // First, let me assume the controller has a showPassword variable
-                        // If not, we'll create it
-
-                        Obx(
-                          // 'Obx' watches reactive variables and rebuilds when they change
-                          () => TextField(
-                            // Link to the password controller
-                            controller: _passwordController,
-
-                            // 'obscureText' hides the text with dots/bullets
-                            // If showPassword is true, show text; if false, show dots
-                            obscureText: !controller.showPassword.value,
-                            // We use '!' (not) because obscureText means "hide the text"
-                            // So if showPassword is true, we want obscureText to be false (don't hide)
-
-                            // Decoration for the password field
+                          // --- EMAIL FIELD ---
+                          // TextFormField adds a validator callback that is
+                          // triggered automatically by _formKey.currentState!.validate()
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next, // moves focus to password field
                             decoration: InputDecoration(
-                              // Label text
-                              labelText: 'Password',
-
-                              // Hint text
-                              hintText: 'Enter your password',
-
-                              // Border when not focused
+                              labelText: 'Email',
+                              hintText: 'Enter your email',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-
-                              // Border when focused
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
@@ -218,114 +157,163 @@ class LoginScreen extends GetView<AuthController> {
                                   width: 2,
                                 ),
                               ),
-
-                              // Padding inside the field
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
                               ),
+                            ),
+                            // Validator runs when _formKey.currentState!.validate() is called.
+                            // Returning a String shows it as a red error below the field.
+                            // Returning null means the field is valid.
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              // Basic email format check — catches obvious typos before
+                              // sending a request to Firebase
+                              if (!value.contains('@') || !value.contains('.')) {
+                                return 'Please enter a valid email address';
+                              }
+                              return null; // valid
+                            },
+                          ),
 
-                              // 'suffixIcon' is an icon button at the end of the field
-                              // We use this for the show/hide password eye icon
-                              suffixIcon: IconButton(
-                                // When tapped, toggle password visibility
-                                onPressed: () {
-                                  // Toggle the showPassword state
-                                  // '.toggle()' switches between true and false
-                                  controller.showPassword.toggle();
-                                },
+                          const SizedBox(height: 16),
 
-                                // 'icon' is the icon to display
-                                // Show different icons based on visibility
-                                icon: Icon(
-                                  // If password is visible, show eye icon; if hidden, show eye-off icon
-                                  controller.showPassword.value
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: Colors.grey,
+                          // --- PASSWORD FIELD ---
+                          // Obx wraps only the password field so it rebuilds when
+                          // showPassword toggles — the rest of the screen stays stable
+                          Obx(
+                            () => TextFormField(
+                              controller: _passwordController,
+                              obscureText: !_authController.showPassword.value,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _submit(), // submit on keyboard "Done"
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                hintText: 'Enter your password',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Colors.blue,
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                suffixIcon: IconButton(
+                                  onPressed: () =>
+                                      _authController.showPassword.toggle(),
+                                  icon: Icon(
+                                    _authController.showPassword.value
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                }
+                                if (value.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null; // valid
+                              },
                             ),
-
-                            // Keyboard type - don't show keyboard suggestions for passwords
-                            keyboardType: TextInputType.visiblePassword,
                           ),
-                        ),
 
-                        // Space between password field and login button
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                        // --- LOGIN BUTTON OR LOADING SPINNER ---
-
-                        // 'Obx' watches the isLoading state and rebuilds when it changes
-                        Obx(
-                          // This callback runs whenever isLoading changes
-                          () =>
-                              // Check if still loading
-                              controller.isLoading.value
-                                  ? // If loading, show a circular progress indicator (spinner)
-                                  // 'CircularProgressIndicator' is a spinning loader
-                                  const Center(
-                                      child: CircularProgressIndicator(),
-                                    )
-                                  : // If not loading, show the login button
-                                  // 'ElevatedButton' is a clickable button with elevation (shadow)
-                                  ElevatedButton(
-                                      // Called when user taps the button
-                                      onPressed: () {
-                                        // Call the login method on the controller
-                                        // Pass the email and password from the text controllers
-                                        controller.login(
-                                          _emailController.text, // Get email text
-                                          _passwordController
-                                              .text, // Get password text
-                                        );
-                                      },
-
-                                      // Style of the button
-                                      style: ElevatedButton.styleFrom(
-                                        // Background color
-                                        backgroundColor: Colors.blue,
-
-                                        // Padding inside the button
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-
-                                        // Shape with rounded corners
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
+                          // --- LOGIN BUTTON / LOADING SPINNER ---
+                          Obx(
+                            () => _authController.isLoading.value
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : ElevatedButton(
+                                    onPressed: _submit,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
                                       ),
-
-                                      // Text inside the button
-                                      child: const Text(
-                                        'Login', // Button label
-                                        style: TextStyle(
-                                          fontSize: 16, // Text size
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white, // White text
-                                        ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                        ),
-                      ],
+                                    child: const Text(
+                                      'Login',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // --- BOTTOM SECTION: Empty space for layout ---
-                // This pushes the form up and centers it vertically
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 20),
+
+                  // Request Access link — for new users without an account
+                  Column(
+                    children: [
+                      Text(
+                        'Don\'t have an account?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => Get.toNamed('/register-request'),
+                        child: const Text(
+                          'Request Access',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.blue,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      // Already submitted a request?  Check if it was
+                      // approved or rejected without contacting the admin.
+                      GestureDetector(
+                        onTap: () => Get.toNamed('/check-status'),
+                        child: Text(
+                          'Check My Request Status',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-
-  // Note: We don't need a dispose method here because GetView works with StatelessWidget
-  // The TextEditingControllers will be garbage collected when the screen is removed
 }

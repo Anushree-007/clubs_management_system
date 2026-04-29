@@ -1,5 +1,6 @@
 // Import the Firebase Auth package - this gives us access to Firebase authentication features
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 // This is the AuthService class - it handles all user authentication (login/logout) operations
 // We put all auth-related code here to keep it organized and reusable across the app
@@ -73,5 +74,40 @@ class AuthService {
     // If nobody is logged in, this returns null
     // If someone is logged in, it returns their User object with info like email, uid, etc.
     return _auth.currentUser;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // createUser — called by the admin when approving a registration request.
+  //
+  // WHY we use a secondary FirebaseAuth instance:
+  //   FirebaseAuth.createUserWithEmailAndPassword() signs in the newly
+  //   created user immediately, which would boot the admin out of their
+  //   own session.  By initialising a separate Firebase App just for this
+  //   operation and deleting it afterward, the admin's session is completely
+  //   unaffected.
+  //
+  // The returned uid is stored on the Firestore user profile document so
+  // getUser(uid) works as soon as the new user logs in.
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<String> createUser(String email, String password) async {
+    // Import is at the top of the file (firebase_auth already imported).
+    // We use a secondary app so the admin's current session is not replaced.
+    final secondaryApp = await Firebase.initializeApp(
+      name: 'secondary_${DateTime.now().millisecondsSinceEpoch}',
+      options: Firebase.app().options,
+    );
+
+    try {
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return credential.user!.uid;
+    } finally {
+      // Always delete the temporary app — even if creation failed —
+      // to avoid accumulating leaked Firebase app instances.
+      await secondaryApp.delete();
+    }
   }
 }

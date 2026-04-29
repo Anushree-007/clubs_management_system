@@ -63,13 +63,13 @@ class TenureModel {
       // We use '?.toDate()' to safely convert the timestamp to a DateTime object
       // The '?.' means: only call toDate() if the value is not null
       // If null, we use DateTime.now() as the default start date
-      startDate: (json['startDate'] as dynamic)?.toDate() ?? DateTime.now(),
+      startDate: _parseDate(json['startDate']),
       
       // Get 'endDate' value from json - it's also stored as a timestamp in Firestore
       // Since endDate can be null (for active tenures), we use '?.toDate()' 
       // This safely converts the timestamp if it exists, or returns null if it doesn't
       // The result will be null if the tenure is still active (no end date yet)
-      endDate: (json['endDate'] as dynamic)?.toDate(),
+      endDate: _parseDate(json['endDate']),
       
       // Get 'isActive' from json with null safety - defaults to true if missing
       // The 'as bool?' safely casts to a boolean, and '?? true' defaults to true if null
@@ -121,4 +121,11 @@ class TenureModel {
       'hierarchy': hierarchy,
     };
   }
+
+  static DateTime _parseDate(dynamic value) {
+  if (value == null) return DateTime.now();
+  try { return value.toDate(); } catch (_) {}
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
 }

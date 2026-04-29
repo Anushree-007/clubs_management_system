@@ -76,7 +76,7 @@ class UserModel {
       // We use '?.toDate()' to safely convert the timestamp to a DateTime object
       // The '?.' means: only call toDate() if the value is not null
       // If null, we use DateTime.now() as the default creation time
-      createdAt: (json['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: _parseDate(json['createdAt']),
     );
   }
 
@@ -113,4 +113,10 @@ class UserModel {
       'createdAt': createdAt,
     };
   }
+  static DateTime _parseDate(dynamic value) {
+  if (value == null) return DateTime.now();
+  try { return value.toDate(); } catch (_) {}
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
 }

@@ -7,6 +7,8 @@ import 'package:club_management_app/controllers/member_controller.dart'; // impo
 
 // This screen shows the list of members for the selected club and tenure
 class MemberListScreen extends GetView<MemberController> {
+  // ignore: prefer_const_constructors_in_immutables
+  MemberListScreen({super.key});
 
   // Track whether member data has already been loaded
   final RxBool _hasInitialized = false.obs; // reactive bool set to false initially
@@ -149,7 +151,7 @@ class MemberListScreen extends GetView<MemberController> {
                                     member.phone, // phone text
                                     style: const TextStyle(
                                       fontSize: 13, // smaller text size
-                                      color: Colors.black54, // muted text color
+                                      // color: Colors.black54, // muted text color
                                     ),
                                   ),
                                   const SizedBox(height: 4), // small spacing between phone and email
@@ -157,18 +159,71 @@ class MemberListScreen extends GetView<MemberController> {
                                     member.email, // email text
                                     style: const TextStyle(
                                       fontSize: 13, // smaller text size
-                                      color: Colors.black54, // muted text color
+                                      // color: Colors.black54, // muted text color
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            if (authController.isChairperson) // only show edit button to chairpersons
-                              IconButton(
-                                icon: const Icon(Icons.edit), // edit icon
-                                onPressed: () {
-                                  controller.selectMember(member); // select member and navigate to form
-                                },
+                            // Show edit and delete buttons only for chairperson
+                            if (authController.isChairperson)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+
+                                  // Edit button — opens the member form in edit mode
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.blue),
+                                    onPressed: () => controller.selectMember(member),
+                                  ),
+
+                                  // Delete button — removes the member after confirmation
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () {
+                                      // Show a confirmation dialog before deleting
+                                      // This prevents accidental deletions
+                                      showDialog(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Delete Member?'),
+                                          content: Text(
+                                            'Are you sure you want to remove ${member.name} from this club?',
+                                          ),
+                                          actions: [
+
+                                            // Cancel button — closes dialog without doing anything
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx),
+                                              child: const Text('Cancel'),
+                                            ),
+
+                                            // Confirm delete button
+                                            TextButton(
+                                              onPressed: () {
+                                                // Close the dialog first
+                                                Navigator.pop(ctx);
+
+                                                // Get the club ID from ClubController
+                                                final clubId = Get.find<ClubController>()
+                                                    .selectedClub
+                                                    .value
+                                                    ?.id ?? '';
+
+                                                // Call the delete method in the controller
+                                                controller.deleteMember(clubId, member.id);
+                                              },
+                                              child: const Text(
+                                                'Delete',
+                                                style: TextStyle(color: Colors.red),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                           ],
                         ),

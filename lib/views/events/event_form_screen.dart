@@ -406,6 +406,9 @@ class EventFormScreen extends GetView<EventController> {
         budgetClosed: false, // New events always start with budget not closed
         budgetClosedAt: null, // No close date yet
         createdAt: DateTime.now(), // Current time as creation timestamp
+        reportStatus: 'draft', // New events start with 'draft' status
+        reportRevisionNote: '', // No revision note for new events
+        
       );
 
       // Call the controller to add the new event to Firestore

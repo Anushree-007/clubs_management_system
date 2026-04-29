@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 // Import the App widget from the app.dart file in the lib/app directory
 // This is the main app widget that sets up routing and dependencies
 import 'app/app.dart';
+import 'package:get_storage/get_storage.dart';
 
 // ============================================================================
 // MAIN FUNCTION - Entry point of the Flutter application
@@ -32,6 +33,10 @@ void main() async {
     // 'DefaultFirebaseOptions.currentPlatform' automatically picks the right config
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+
+  // Initialize GetStorage for saving theme preference locally
+  await GetStorage.init();
 
   // Run the App widget once Firebase is fully initialized.
   // The app will now display the App widget on the screen.

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 
 // Import the ClubController so this screen can access club state and actions
 import 'package:club_management_app/controllers/club_controller.dart';
+import 'package:club_management_app/controllers/auth_controller.dart';
 
 // This widget displays a form for editing the selected club information
 class ClubEditScreen extends GetView<ClubController> {
@@ -49,6 +50,29 @@ class ClubEditScreen extends GetView<ClubController> {
   Widget build(BuildContext context) {
     // Populate fields whenever the screen builds to ensure current data is shown
     _populateFields();
+
+    // ── Ownership guard ──────────────────────────────────────────────────
+    // Verify the current user is allowed to edit this club.
+    // This catches anyone who navigates directly to /club-edit without going
+    // through the normal FAB (which already hides itself for unauthorised users).
+    final authController = Get.find<AuthController>();
+    final clubId = controller.selectedClub.value?.id ?? '';
+    if (clubId.isNotEmpty && !authController.canManageClub(clubId)) {
+      // Schedule the navigation away for after this build frame completes.
+      // Calling Get.back() synchronously inside build() would cause a
+      // "setState() or markNeedsBuild() called during build" error.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Get.back();
+        Get.snackbar(
+          'Access Denied',
+          'You can only edit your own club.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      });
+      // Return an empty scaffold for this frame while navigation completes
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     return Scaffold(
       // AppBar shows the title at the top of the screen
